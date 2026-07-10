@@ -59,3 +59,25 @@ Kết quả phân tích hướng tới nhóm đối tượng là nhà đầu tư
 - Cột `2025-Q4_1` trong `ratio()` nghi là bản báo cáo trùng quý (có thể là bản đã soát xét) - để nguyên ở dữ liệu thô, xử lý sau
 ### Định dạng & vị trí lưu trữ
 - Parquet, thư mục `raw/{price, financial, index}/`, đặt tên file theo mã cổ phiếu
+
+## 3. Thiết kế & khởi tạo database
+### Thiết kế schema
+- Mô hình star schema, gồm 3 bảng: `dim_company`, `fact_price_daily`, `fact_financial_quarterly`
+- Hai bảng staging trung gian: `staging_price_raw`, `staging_financial_raw`.
+
+### Các bảng
+- `dim_company` — danh sách 10 mã ngân hàng + VNINDEX, phân loại quốc doanh/tư nhân
+- `fact_price_daily` — giá & khối lượng theo ngày, unique theo (company_id, trade_date)
+- `fact_financial_quarterly` — chỉ số tài chính theo quý, dạng long (mỗi dòng 1 chỉ số), unique theo (company_id, year, quarter, ratio_id)
+- `staging_price_raw`, `staging_financial_raw` — bảng trung gian, không ràng buộc, giữ đúng dữ liệu thô trước khi làm sạch.
+
+### Quyết định thiết kế đáng chú ý
+- VNINDEX được model như 1 dòng trong `dim_company` (`is_index = TRUE`) thay vì tách bảng riêng, để có thể join `fact_price_daily` theo `company_id` thống nhất khi tính beta, không cần xử lý đặc biệt cho index
+- `fact_financial_quarterly` dùng dạng long (EAV: `ratio_id`/`ratio_value` theo dòng) thay vì 1 cột riêng cho từng chỉ số - đánh đổi lấy sự linh hoạt khi số lượng/loại chỉ số có thể khác nhau giữa các kỳ, chấp nhận cần pivot khi truy vấn
+
+Script tạo bảng: xem `sql/create_tables.sql`.
+
+### Nạp dữ liệu thô vào staging
+- `staging_price_raw`: 6.250 dòng (10 mã) + 625 dòng (VNINDEX) — khớp đúng 10 mã × 625 phiên giao dịch, xác nhận không mã nào thiếu dữ liệu
+- `staging_financial_raw`: 1.280 dòng — khớp đúng 10 mã × 32 chỉ số × 4 quý
+- Script: `scripts/load_staging.py`.
