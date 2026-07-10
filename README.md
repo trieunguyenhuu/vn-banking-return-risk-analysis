@@ -78,6 +78,32 @@ Kết quả phân tích hướng tới nhóm đối tượng là nhà đầu tư
 Script tạo bảng: xem `sql/create_tables.sql`.
 
 ### Nạp dữ liệu thô vào staging
-- `staging_price_raw`: 6.250 dòng (10 mã) + 625 dòng (VNINDEX) — khớp đúng 10 mã × 625 phiên giao dịch, xác nhận không mã nào thiếu dữ liệu
-- `staging_financial_raw`: 1.280 dòng — khớp đúng 10 mã × 32 chỉ số × 4 quý
+- `staging_price_raw`: 6.250 dòng (10 mã) + 625 dòng (VNINDEX) - khớp đúng 10 mã × 625 phiên giao dịch, xác nhận không mã nào thiếu dữ liệu
+- `staging_financial_raw`: 1.280 dòng - khớp đúng 10 mã × 32 chỉ số × 4 quý
 - Script: `scripts/load_staging.py`.
+
+## 4. Làm sạch dữ liệu bằng SQL
+### Nạp dim_company
+Nạp 10 mã ngân hàng + VNINDEX vào `dim_company`, phân loại `group_type` (Quốc doanh: VCB, BID, CTG / Tư nhân: TCB, ACB, MBB, VPB, HDB, STB, VIB) và đánh dấu `is_index = TRUE` cho VNINDEX để phục vụ tính beta sau này.
+
+### Transform staging → fact
+- `fact_price_daily`: nhân giá với 1000 để quy đổi từ nghìn VNĐ sang VNĐ cho 10 mã cổ phiếu, giữ nguyên giá trị cho VNINDEX (vì là điểm số, không phải tiền tệ).
+- `fact_financial_quarterly`: tách `quarter_label` (VD `2025-Q4_1`) thành `year`/`quarter`, gộp các quý trùng nhau.
+
+Cả 2 câu INSERT dùng `ON CONFLICT DO NOTHING` để có thể chạy lại an toàn khi nạp thêm dữ liệu mới mà không bị lỗi trùng khóa.
+
+### Xử lý bản ghi trùng quý (`_1` suffix)
+Khi 1 mã có cả `YYYY-Qn` và `YYYY-Qn_1` cho cùng chỉ số, ưu tiên giữ bản `_1` (giả định là bản công bố sau/đã điều chỉnh, dựa trên quy ước đặt tên của nguồn KBS - nguồn không cung cấp cờ trạng thái kiểm toán đáng tin cậy để xác nhận). Đây là giới hạn của phân tích, không có xác nhận chính thức từ nguồn dữ liệu.
+
+### Kiểm tra chất lượng dữ liệu (`sql/validation_checks.sql`)
+| Hạng mục | Kết quả |
+|---|---|
+| Giá trị NULL (giá, volume, ratio_value) | Không có — 0 dòng NULL ở cả `fact_price_daily` và `fact_financial_quarterly` |
+| Trùng lặp (company_id, trade_date) và (company_id, year, quarter, ratio_id) | 0 dòng — UNIQUE constraint đã chặn từ lúc insert |
+| Khoảng trống ngày giao dịch bất thường (gap > 4 ngày) | Có 9 mốc gap (5-10 ngày), nhưng **tất cả xảy ra đồng loạt ở toàn bộ 10 mã + VNINDEX cùng ngày** — khớp với các dịp nghỉ lễ đã biết: Tết Nguyên Đán (2024, 2025, 2026), nghỉ 30/4-1/5 (2024, 2025, 2026), Quốc khánh 2/9 (2024, 2025), Tết Dương lịch 2026. Không phát hiện gap bất thường riêng lẻ ở mã nào → dữ liệu đầy đủ, không thiếu phiên giao dịch nào ngoài dự kiến |
+| Giá/volume âm | Không có — 0 dòng vi phạm |
+| Logic OHLC (high ≥ open/close/low, low ≤ open/close/high) | Không có vi phạm |
+| Số dòng giá mỗi mã | Đủ 625 dòng/mã (khớp log fetch ở bước 2) |
+| Số quý tài chính mỗi mã | 3 quý (Q3/2025, Q4/2025, Q1/2026) — đúng như kỳ vọng, vì `2025-Q4` và `2025-Q4_1` đã gộp về cùng 1 quý theo quyết định xử lý trùng lặp ở trên |
+
+Script SQL: `sql/transform_to_fact.sql` (nạp dim + transform fact), `sql/validation_checks.sql` (kiểm tra chất lượng).
