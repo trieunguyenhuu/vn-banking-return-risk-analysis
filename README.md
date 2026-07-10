@@ -35,10 +35,7 @@ Nhóm cổ phiếu ngân hàng là một trong những nhóm ngành vốn hóa l
 ### Câu hỏi kinh doanh
 
 **Câu hỏi chính:**
-Trong 10 mã cổ phiếu ngân hàng niêm yết (VCB, BID, CTG, TCB, ACB, MBB, VPB,
-HDB, STB, VIB) từ Q1/2024 đến nay, mã nào đang có lợi nhuận (return) cao
-nhưng đi kèm mức độ biến động (volatility) và rủi ro hệ thống (beta) tăng
-bất thường?
+Trong 10 mã cổ phiếu ngân hàng niêm yết (VCB, BID, CTG, TCB, ACB, MBB, VPB, HDB, STB, VIB) từ Q1/2024 đến nay, mã nào đang có lợi nhuận (return) cao nhưng đi kèm mức độ biến động (volatility) và rủi ro hệ thống (beta) tăng bất thường?
 
 **Câu hỏi phụ:**
 1. Biến động của nhóm cổ phiếu ngân hàng tăng/giảm rõ rệt nhất vào giai đoạn nào trong khung thời gian phân tích, và điều này có trùng với các sự kiện vĩ mô (thay đổi lãi suất, chính sách tín dụng) không?
@@ -46,3 +43,19 @@ bất thường?
 
 ### Vì sao câu hỏi này quan trọng
 Kết quả phân tích hướng tới nhóm đối tượng là nhà đầu tư cá nhân hoặc bộ phận research của công ty chứng khoán - những người cần xác định mã nào phù hợp khẩu vị rủi ro nào, thay vì chỉ nhìn return đơn thuần. Từ đó hỗ trợ quyết định phân bổ danh mục: mã nào nên đưa vào danh mục phòng thủ, mã nào phù hợp chiến lược chấp nhận rủi ro cao hơn để đổi lấy tăng trưởng.
+
+## 2. Thu thập dữ liệu
+### Nguồn dữ liệu
+- KBS (qua thư viện vnstock) - chọn nguồn này vì cung cấp đủ 4 chỉ số cần thiết (P/E, ROE, EPS, NIM), bao gồm cả NIM vốn là chỉ số đặc thù ngân hàng mà không phải nguồn nào cũng có sẵn.
+- Giá KBS trả về là giá đã điều chỉnh (adjusted). Không cần tự xử lý điều chỉnh do chia tách/cổ tức
+### Phạm vi thực tế đã lấy được
+- Giá & khối lượng: 02/01/2024 - 09/07/2026, lấy được đủ 10 mã
+- Chỉ số tài chính quý: chỉ lấy được 4 quý gần nhất
+- VN-Index: 02/01/2024 - 09/07/2024
+### Vấn đề gặp phải khi thu thập & cách xử lý
+- Giới hạn 4 quý gần nhất ở dữ liệu tài chính (gói miễn phí): quyết định thu hẹp vai trò của nhóm chỉ số này thành "bức tranh fundamentals hiện tại" bổ trợ cho phân tích return/volatility/beta (dựa hoàn toàn trên dữ liệu giá)
+- Giá trả về ở đơn vị nghìn VND: quy đổi về VND đầy đủ khi nạp vào PostgreSQL
+- `trailing_eps` là EPS trượt 4 quý gần nhất (TTM), không phải EPS riêng từng quý
+- Cột `2025-Q4_1` trong `ratio()` nghi là bản báo cáo trùng quý (có thể là bản đã soát xét) - để nguyên ở dữ liệu thô, xử lý sau
+### Định dạng & vị trí lưu trữ
+- Parquet, thư mục `raw/{price, financial, index}/`, đặt tên file theo mã cổ phiếu
