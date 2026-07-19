@@ -1,6 +1,6 @@
 # Phân tích Hiệu suất & Rủi ro Nhóm Cổ phiếu Ngân hàng Niêm yết Việt Nam
 
-**Công nghệ sử dụng:** Python (vnstock) · PostgreSQL · Power BI · Phân cụm K-means
+**Công nghệ sử dụng:** Python (vnstock) · PostgreSQL · Power BI
 
 ## 1. Bối cảnh & Câu hỏi kinh doanh
 
@@ -25,7 +25,7 @@ Nhóm cổ phiếu ngân hàng là một trong những nhóm ngành vốn hóa l
 | Tư nhân | VIB | Ngân hàng TMCP Quốc tế Việt Nam |
 
 **Khung thời gian:**
-- Dữ liệu giá & khối lượng: 02/01/2024 (phiên giao dịch đầu tiên năm 2024) - hiện tại
+- Dữ liệu giá & khối lượng: 02/01/2024 (phiên giao dịch đầu tiên năm 2024) - 09/07/2026
 - Dữ liệu tài chính theo quý (P/E, ROE, EPS, NIM): Q1/2024 - Q1/2026
 
 > **Lưu ý về mốc thời gian dữ liệu tài chính quý:** Dữ liệu tài chính quý (P/E, ROE, EPS, NIM) chỉ lấy đến Q1/2026, không lấy đến quý hiện tại như dữ liệu giá. Lý do: BCTC quý của công ty mẹ (như các ngân hàng, do có công ty con) được phép công bố tối đa 45 ngày sau khi quý kết thúc, nên tại thời điểm thu thập dữ liệu, quý gần nhất chưa chắc đã có đủ báo cáo cho cả 10 mã.
@@ -51,7 +51,7 @@ Kết quả phân tích hướng tới nhóm đối tượng là nhà đầu tư
 ### Phạm vi thực tế đã lấy được
 - Giá & khối lượng: 02/01/2024 - 09/07/2026, lấy được đủ 10 mã
 - Chỉ số tài chính quý: chỉ lấy được 4 quý gần nhất
-- VN-Index: 02/01/2024 - 09/07/2024
+- VN-Index: 02/01/2024 - 09/07/2026
 ### Vấn đề gặp phải khi thu thập & cách xử lý
 - Giới hạn 4 quý gần nhất ở dữ liệu tài chính (gói miễn phí): quyết định thu hẹp vai trò của nhóm chỉ số này thành "bức tranh fundamentals hiện tại" bổ trợ cho phân tích return/volatility/beta (dựa hoàn toàn trên dữ liệu giá)
 - Giá trả về ở đơn vị nghìn VND: quy đổi về VND đầy đủ khi nạp vào PostgreSQL
@@ -66,10 +66,10 @@ Kết quả phân tích hướng tới nhóm đối tượng là nhà đầu tư
 - Hai bảng staging trung gian: `staging_price_raw`, `staging_financial_raw`.
 
 ### Các bảng
-- `dim_company` — danh sách 10 mã ngân hàng + VNINDEX, phân loại quốc doanh/tư nhân
-- `fact_price_daily` — giá & khối lượng theo ngày, unique theo (company_id, trade_date)
-- `fact_financial_quarterly` — chỉ số tài chính theo quý, dạng long (mỗi dòng 1 chỉ số), unique theo (company_id, year, quarter, ratio_id)
-- `staging_price_raw`, `staging_financial_raw` — bảng trung gian, không ràng buộc, giữ đúng dữ liệu thô trước khi làm sạch.
+- `dim_company` - danh sách 10 mã ngân hàng + VNINDEX, phân loại quốc doanh/tư nhân
+- `fact_price_daily` - giá & khối lượng theo ngày, unique theo (company_id, trade_date)
+- `fact_financial_quarterly` - chỉ số tài chính theo quý, dạng long (mỗi dòng 1 chỉ số), unique theo (company_id, year, quarter, ratio_id)
+- `staging_price_raw`, `staging_financial_raw` - bảng trung gian, không ràng buộc, giữ đúng dữ liệu thô trước khi làm sạch.
 
 ### Quyết định thiết kế đáng chú ý
 - VNINDEX được model như 1 dòng trong `dim_company` (`is_index = TRUE`) thay vì tách bảng riêng, để có thể join `fact_price_daily` theo `company_id` thống nhất khi tính beta, không cần xử lý đặc biệt cho index
@@ -93,17 +93,40 @@ Nạp 10 mã ngân hàng + VNINDEX vào `dim_company`, phân loại `group_type`
 Cả 2 câu INSERT dùng `ON CONFLICT DO NOTHING` để có thể chạy lại an toàn khi nạp thêm dữ liệu mới mà không bị lỗi trùng khóa.
 
 ### Xử lý bản ghi trùng quý (`_1` suffix)
-Khi 1 mã có cả `YYYY-Qn` và `YYYY-Qn_1` cho cùng chỉ số, ưu tiên giữ bản `_1` (giả định là bản công bố sau/đã điều chỉnh, dựa trên quy ước đặt tên của nguồn KBS - nguồn không cung cấp cờ trạng thái kiểm toán đáng tin cậy để xác nhận). Đây là giới hạn của phân tích, không có xác nhận chính thức từ nguồn dữ liệu.
+Khi 1 mã có cả `YYYY-Qn` và `YYYY-Qn_1` cho cùng chỉ số, ưu tiên giữ bản `_1` (giả định là bản công bố sau/đã điều chỉnh, dựa trên quy ước đặt tên của nguồn KBS - nguồn không cung cấp cờ trạng thái kiểm toán đáng tin cậy để xác nhận). Đối chiếu giá trị giữa 2 bản (mẫu: ACB, Q4/2025) cho thấy phần lớn chỉ số có giá trị khác nhau thật sự (beta, BVPS, CIR, tiền gửi khách hàng...), chỉ một số chỉ số mang tính cấu trúc ổn định (vốn điều lệ, tỷ suất cổ tức) trùng khớp - xác nhận đây là 2 phiên bản báo cáo khác nhau thật, không phải bản ghi trùng lặp do lỗi kỹ thuật. Vẫn là giới hạn của phân tích: không có xác nhận chính thức bản nào là bản cuối/đã kiểm toán.
 
 ### Kiểm tra chất lượng dữ liệu (`sql/validation_checks.sql`)
 | Hạng mục | Kết quả |
 |---|---|
-| Giá trị NULL (giá, volume, ratio_value) | Không có — 0 dòng NULL ở cả `fact_price_daily` và `fact_financial_quarterly` |
-| Trùng lặp (company_id, trade_date) và (company_id, year, quarter, ratio_id) | 0 dòng — UNIQUE constraint đã chặn từ lúc insert |
-| Khoảng trống ngày giao dịch bất thường (gap > 4 ngày) | Có 9 mốc gap (5-10 ngày), nhưng **tất cả xảy ra đồng loạt ở toàn bộ 10 mã + VNINDEX cùng ngày** — khớp với các dịp nghỉ lễ đã biết: Tết Nguyên Đán (2024, 2025, 2026), nghỉ 30/4-1/5 (2024, 2025, 2026), Quốc khánh 2/9 (2024, 2025), Tết Dương lịch 2026. Không phát hiện gap bất thường riêng lẻ ở mã nào → dữ liệu đầy đủ, không thiếu phiên giao dịch nào ngoài dự kiến |
-| Giá/volume âm | Không có — 0 dòng vi phạm |
+| Giá trị NULL (giá, volume, ratio_value) | Không có - 0 dòng NULL ở cả `fact_price_daily` và `fact_financial_quarterly` |
+| Trùng lặp (company_id, trade_date) và (company_id, year, quarter, ratio_id) | 0 dòng - UNIQUE constraint đã chặn từ lúc insert |
+| Khoảng trống ngày giao dịch bất thường (gap > 4 ngày) | Có 9 mốc gap (5-10 ngày), nhưng **tất cả xảy ra đồng loạt ở toàn bộ 10 mã + VNINDEX cùng ngày** - khớp với các dịp nghỉ lễ đã biết: Tết Nguyên Đán (2024, 2025, 2026), nghỉ 30/4-1/5 (2024, 2025, 2026), Quốc khánh 2/9 (2024, 2025), Tết Dương lịch 2026. Không phát hiện gap bất thường riêng lẻ ở mã nào → dữ liệu đầy đủ, không thiếu phiên giao dịch nào ngoài dự kiến |
+| Giá/volume âm | Không có - 0 dòng vi phạm |
 | Logic OHLC (high ≥ open/close/low, low ≤ open/close/high) | Không có vi phạm |
 | Số dòng giá mỗi mã | Đủ 625 dòng/mã (khớp log fetch ở bước 2) |
-| Số quý tài chính mỗi mã | 3 quý (Q3/2025, Q4/2025, Q1/2026) — đúng như kỳ vọng, vì `2025-Q4` và `2025-Q4_1` đã gộp về cùng 1 quý theo quyết định xử lý trùng lặp ở trên |
+| Số quý tài chính mỗi mã | 3 quý (Q3/2025, Q4/2025, Q1/2026) - đúng như kỳ vọng, vì `2025-Q4` và `2025-Q4_1` đã gộp về cùng 1 quý theo quyết định xử lý trùng lặp ở trên |
 
 Script SQL: `sql/transform_to_fact.sql` (nạp dim + transform fact), `sql/validation_checks.sql` (kiểm tra chất lượng).
+
+## 5. Xây dựng metric layer
+
+Xây dựng 5 view SQL để tính các chỉ số phân tích, tách riêng khỏi bảng fact gốc để dễ tái sử dụng cho Power BI và phân tích K-means:
+
+| View | Công thức | Ghi chú |
+|---|---|---|
+| `v_daily_return` | `(close_hôm_nay - close_hôm_qua) / close_hôm_qua` | Dùng `LAG()`, áp dụng cho cả 10 mã và VNINDEX |
+| `v_volatility_20d` | Độ lệch chuẩn (STDDEV_SAMP) của daily return trên cửa sổ trượt 20 phiên | Có thêm cột annualized (× √252). 19 phiên đầu mỗi mã NULL hoá tường minh (chưa đủ 20 phiên) |
+| `v_beta_60d` | `REGR_SLOPE(return_cổ_phiếu, return_VNINDEX)` trên cửa sổ trượt 60 phiên | Dùng hàm hồi quy tuyến tính có sẵn của PostgreSQL, join theo `trade_date` với return của VNINDEX. Không tính cho VNINDEX (beta so với chính nó không có ý nghĩa). 59 phiên đầu mỗi mã NULL hoá tường minh |
+| `v_moving_average` | Trung bình cộng giá đóng cửa trên cửa sổ trượt 50/200 phiên | MA50/MA200 của các phiên đầu mỗi mã (chưa đủ 50/200 phiên lịch sử) được NULL hoá tường minh, không tính trên cửa sổ ngắn hơn - tránh hiển thị số liệu gây hiểu nhầm |
+| `v_metric_layer` | Gộp 4 view trên theo `(company_id, trade_date)` | View tổng hợp duy nhất, dùng làm nguồn kết nối trực tiếp cho Power BI ở bước 6; loại VNINDEX, chỉ giữ 10 mã ngân hàng |
+
+Script SQL: `sql/metrics_views.sql`
+
+### Kiểm tra hợp lý (sanity check)
+Đối chiếu độc lập bằng Python (`pandas`, `numpy.polyfit`) cho mã **VCB**: lấy dữ liệu thô từ `fact_price_daily`, tự tính lại volatility và beta ngoài SQL, so sánh với kết quả view.
+
+| Chỉ số | Kết quả SQL (view) | Kết quả Python (độc lập) | Kết luận |
+|---|---|---|---|
+| volatility_20d | 0.118365 | 0.11836488... | Khớp |
+| beta_60d | 0.353224 | 0.35322393... | Khớp |
+| daily_return | - | - | Không kiểm chứng riêng - là input trực tiếp của 2 phép tính trên, đã gián tiếp xác nhận đúng |
