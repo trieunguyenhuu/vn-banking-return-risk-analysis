@@ -130,3 +130,25 @@ Script SQL: `sql/metrics_views.sql`
 | volatility_20d | 0.118365 | 0.11836488... | Khớp |
 | beta_60d | 0.353224 | 0.35322393... | Khớp |
 | daily_return | - | - | Không kiểm chứng riêng - là input trực tiếp của 2 phép tính trên, đã gián tiếp xác nhận đúng |
+
+## 6. Xây dựng dashboard Power BI
+
+### Kết nối
+Power BI Desktop kết nối trực tiếp tới PostgreSQL qua view `v_metric_layer` 
+
+### Các visual đã xây dựng
+| Visual | Loại | Mục đích |
+|---|---|---|
+| Indexed Price (Base 100) by Year and symbol | Line chart | So sánh hiệu suất tương đối giữa 10 mã (chuẩn hóa về mốc 100 tại ngày đầu tiên) |
+| Bảng xếp hạng (symbol, Return, Volatility, Beta, Z-Score) | Table + conditional formatting | Xếp hạng và cảnh báo mã có Z-Score bất thường (đỏ/vàng theo ngưỡng độ lệch chuẩn) |
+| Volatility vs Return vs Beta | Scatter/Bubble chart | Trực quan hóa quan hệ rủi ro-lợi nhuận, kích thước bubble thể hiện Beta |
+
+### Bộ lọc
+Slicer theo `symbol` và theo quý (`Quý`), áp dụng lên toàn bộ visual trên dashboard.
+
+### Đối chiếu với câu hỏi kinh doanh
+| Câu hỏi | Trạng thái |
+|---|---|
+| Câu hỏi chính: mã nào return cao nhưng volatility/beta tăng bất thường | Trả lời được qua scatter chart + Z-Score trong bảng |
+| Câu hỏi phụ #1: giai đoạn biến động rõ rệt nhất, trùng sự kiện vĩ mô? | Chưa — mở rộng sau |
+| Câu hỏi phụ #2: so sánh nhóm quốc doanh vs tư nhân | Chưa — mở rộng sau |
