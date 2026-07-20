@@ -110,7 +110,7 @@ Script SQL: `sql/transform_to_fact.sql` (nạp dim + transform fact), `sql/valid
 
 ## 5. Xây dựng metric layer
 
-Xây dựng 5 view SQL để tính các chỉ số phân tích, tách riêng khỏi bảng fact gốc để dễ tái sử dụng cho Power BI và phân tích K-means:
+Xây dựng 5 view SQL để tính các chỉ số phân tích, tách riêng khỏi bảng fact gốc để dễ tái sử dụng cho Power BI và phân tích:
 
 | View | Công thức | Ghi chú |
 |---|---|---|
@@ -132,9 +132,11 @@ Script SQL: `sql/metrics_views.sql`
 | daily_return | - | - | Không kiểm chứng riêng - là input trực tiếp của 2 phép tính trên, đã gián tiếp xác nhận đúng |
 
 ## 6. Xây dựng dashboard Power BI
-
+![Dashboard tổng quan](./dashboard.png)
 ### Kết nối
-Power BI Desktop kết nối trực tiếp tới PostgreSQL qua view `v_metric_layer` 
+Power BI Desktop kết nối trực tiếp tới PostgreSQL qua view `v_metric_layer`
+
+Script DAX: `dax/measures.dax`
 
 ### Các visual đã xây dựng
 | Visual | Loại | Mục đích |
@@ -150,5 +152,32 @@ Slicer theo `symbol` và theo quý (`Quý`), áp dụng lên toàn bộ visual t
 | Câu hỏi | Trạng thái |
 |---|---|
 | Câu hỏi chính: mã nào return cao nhưng volatility/beta tăng bất thường | Trả lời được qua scatter chart + Z-Score trong bảng |
-| Câu hỏi phụ #1: giai đoạn biến động rõ rệt nhất, trùng sự kiện vĩ mô? | Chưa — mở rộng sau |
-| Câu hỏi phụ #2: so sánh nhóm quốc doanh vs tư nhân | Chưa — mở rộng sau |
+| Câu hỏi phụ #1: giai đoạn biến động rõ rệt nhất, trùng sự kiện vĩ mô? | Chưa - mở rộng sau |
+| Câu hỏi phụ #2: so sánh nhóm quốc doanh vs tư nhân | Chưa - mở rộng sau |
+
+## 7. Insight & Recommendation
+
+### Phát hiện chính
+- **Không mã nào có Z-Score dương** (cả Volatility và Beta) tại thời điểm phân tích - nghĩa là không mã nào đang biến động/nhạy cảm thị trường cao bất thường so với lịch sử chính nó. Câu hỏi kinh doanh chính do đó được trả lời theo hướng **tương đối** (so sánh giữa 10 mã) thay vì "bất thường tuyệt đối".
+- **STB** có return cao nhất (0.43) trong khi beta thấp (0.28) - hồ sơ lợi nhuận cao nhưng độ nhạy thị trường thấp, khá hiếm trong nhóm.
+- **TCB** có return cao (0.37) đi kèm volatility cao nhất trong nhóm (0.23) - cặp return/risk cao rõ ràng nhất, gần đúng với mô tả "return cao đi kèm rủi ro tăng" mà câu hỏi kinh doanh tìm kiếm, dù chưa ở mức bất thường theo Z-Score.
+- **BID** đáng chú ý theo hướng ngược lại: return thấp (0.10) nhưng beta cao nhất nhì nhóm (0.73) - lợi nhuận không tương xứng với mức độ nhạy cảm thị trường phải gánh.
+- **VCB** có return thấp nhất (0.07) và volatility thấp nhất (0.12) - hồ sơ phòng thủ điển hình, ổn định nhưng tăng trưởng chậm.
+
+### Nhận định theo nhóm
+| Nhóm | Return TB | Volatility TB | Beta TB | Nhận định |
+|---|---|---|---|---|
+| Quốc doanh (VCB, BID, CTG) | ~0.15 | ~0.15 | ~0.52 | Return thấp hơn nhóm tư nhân, nhưng beta trung bình cao hơn (chủ yếu do BID) - hồ sơ rủi ro/lợi nhuận kém hấp dẫn hơn so với tư nhân trong khung thời gian này |
+| Tư nhân (TCB, ACB, MBB, VPB, HDB, STB, VIB) | ~0.30 | ~0.18 | ~0.41 | Return trung bình cao hơn rõ rệt, biến động chỉ nhích nhẹ - nhóm tư nhân hiện có hồ sơ rủi ro/lợi nhuận tốt hơn nhóm quốc doanh |
+
+*Lưu ý: VPB (beta 0.79) là ngoại lệ trong nhóm tư nhân, kéo beta trung bình nhóm lên - nếu loại VPB, beta trung bình nhóm tư nhân sẽ thấp hơn nữa, làm khoảng cách với nhóm quốc doanh càng rõ.*
+
+### Khuyến nghị hành động
+1. **Danh mục phòng thủ:** VCB, ACB (return khá + volatility/beta thấp) phù hợp nhà đầu tư ưu tiên ổn định.
+2. **Danh mục tăng trưởng, chấp nhận rủi ro cao hơn:** STB, TCB, HDB - return cao nhất trong nhóm; TCB cần theo dõi sát hơn do volatility cao nhất.
+3. **Cần xem xét lại:** BID - beta cao nhưng return không tương xứng, tỷ lệ đánh đổi rủi ro/lợi nhuận kém hấp dẫn so với các mã khác trong cùng nhóm quốc doanh.
+4. **Theo dõi định kỳ:** vì hiện tại chưa có mã nào ở vùng Z-Score bất thường (≥ 2 hoặc ≤ -2 theo hướng dương), khuyến nghị dashboard này nên được cập nhật định kỳ (hàng tuần/tháng) để bắt kịp thời điểm nếu có mã chuyển sang vùng rủi ro cao bất thường.
+
+### Giới hạn
+- Nhận định dựa trên dữ liệu tại thời điểm 09/07/2026, chưa phản ánh biến động theo mùa/quý.
+- Nhóm so sánh quốc doanh/tư nhân chỉ có 3 mã quốc doanh - kích thước mẫu nhỏ, một mã ngoại lệ (BID) có thể ảnh hưởng lớn tới trung bình nhóm.
