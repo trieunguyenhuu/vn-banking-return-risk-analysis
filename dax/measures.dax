@@ -1,0 +1,68 @@
+Quý = "Q" & FORMAT(v_metric_layer[trade_date], "q") & "-" & YEAR(v_metric_layer[trade_date])
+
+Latest Trade Date = MAX(v_metric_layer[trade_date])
+
+Volatility (Latest) = 
+CALCULATE(
+    AVERAGE(v_metric_layer[volatility_20d_annualized]),
+    v_metric_layer[trade_date] = MAX(v_metric_layer[trade_date])
+)
+
+Beta (Latest) = 
+CALCULATE(
+    AVERAGE(v_metric_layer[beta_60d]),
+    v_metric_layer[trade_date] = MAX(v_metric_layer[trade_date])
+)
+
+Return (Annualized) = AVERAGE(v_metric_layer[daily_return]) * 252
+
+Volatility Z-Score = 
+VAR CurrentVol = [Volatility (Latest)]
+VAR HistAvg =
+    CALCULATE(
+        AVERAGE(v_metric_layer[volatility_20d_annualized]),
+        ALLEXCEPT(v_metric_layer, v_metric_layer[symbol])
+    )
+VAR HistStd =
+    CALCULATE(
+        STDEV.P(v_metric_layer[volatility_20d_annualized]),
+        ALLEXCEPT(v_metric_layer, v_metric_layer[symbol])
+    )
+RETURN DIVIDE(CurrentVol - HistAvg, HistStd)
+
+Beta Z-Score = 
+VAR CurrentBeta = [Beta (Latest)]
+VAR HistAvg =
+    CALCULATE(
+        AVERAGE(v_metric_layer[beta_60d]),
+        ALLEXCEPT(v_metric_layer, v_metric_layer[symbol])
+    )
+VAR HistStd =
+    CALCULATE(
+        STDEV.P(v_metric_layer[beta_60d]),
+        ALLEXCEPT(v_metric_layer, v_metric_layer[symbol])
+    )
+RETURN DIVIDE(CurrentBeta - HistAvg, HistStd)
+
+Indexed Price (Base 100) = 
+VAR CurrentSymbol = SELECTEDVALUE(v_metric_layer[symbol])
+VAR CurrentDate = MAX(v_metric_layer[trade_date])
+VAR SeriesStartDate = 
+    CALCULATE(
+        MIN(v_metric_layer[trade_date]), 
+        ALLSELECTED(v_metric_layer[trade_date]),
+        v_metric_layer[symbol] = CurrentSymbol
+    )
+VAR StartPrice = 
+    CALCULATE(
+        SUM(v_metric_layer[close_price]), 
+        v_metric_layer[symbol] = CurrentSymbol,
+        v_metric_layer[trade_date] = SeriesStartDate
+    )
+VAR CurrentPrice = 
+    CALCULATE(
+        SUM(v_metric_layer[close_price]), 
+        v_metric_layer[symbol] = CurrentSymbol,
+        v_metric_layer[trade_date] = CurrentDate
+    )
+RETURN DIVIDE(CurrentPrice, StartPrice) * 100
